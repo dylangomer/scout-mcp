@@ -17,7 +17,7 @@ Requirements for initial release. Each maps to roadmap phases.
 
 - [x] **PRXY-01**: Scout connects to a remote HTTP MCP server at runtime using FastMCP ProxyProvider
 - [x] **PRXY-02**: Downstream server tools are namespaced (prefixed with server name) to prevent collisions
-- [ ] **PRXY-03**: Scout fires tools/list_changed notification after connecting a new server so the host discovers new tools
+- [x] **PRXY-03**: Scout fires tools/list_changed notification after connecting a new server so the host discovers new tools
 - [x] **PRXY-04**: In-memory connection cache prevents re-connecting to the same server within a session
 
 ### Control
@@ -83,7 +83,7 @@ Which phases cover which requirements. Updated during roadmap creation.
 | DISC-03 | Phase 1 | Complete |
 | PRXY-01 | Phase 2 | Complete |
 | PRXY-02 | Phase 2 | Complete |
-| PRXY-03 | Phase 2 | Pending |
+| PRXY-03 | Phase 2 | Complete |
 | PRXY-04 | Phase 2 | Complete |
 | CTRL-01 | Phase 3 | Pending |
 | CTRL-02 | Phase 3 | Pending |
