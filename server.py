@@ -1,8 +1,11 @@
+import asyncio
 import os
 import sys
 import httpx
 from contextlib import asynccontextmanager
 from fastmcp import FastMCP
+
+from ranker import filter_http_servers, rank_servers
 
 
 def get_registry_url() -> str:
@@ -40,28 +43,51 @@ def ping() -> str:
     return "pong — Scout is running!"
 
 
+async def search_registry(query: str) -> list[dict]:
+    """Search the MCP registry with one retry on failure."""
+    for attempt in range(2):
+        try:
+            async with httpx.AsyncClient() as client:
+                resp = await client.get(
+                    get_registry_url(),
+                    params={"search": query, "limit": 20},
+                    timeout=15,
+                )
+                resp.raise_for_status()
+            servers = []
+            for entry in resp.json().get("servers", []):
+                server = entry.get("server", {})
+                remotes = server.get("remotes", [])
+                servers.append({
+                    "name": server.get("name", "unknown"),
+                    "description": server.get("description", ""),
+                    "remote_url": remotes[0]["url"] if remotes else None,
+                })
+            return servers
+        except (httpx.HTTPError, httpx.TimeoutException) as e:
+            if attempt == 0:
+                await asyncio.sleep(0.5)
+                continue
+            raise RuntimeError(
+                f"Registry unreachable at {get_registry_url()}"
+            ) from e
+
+
 @mcp.tool
-async def find_servers(query: str) -> list[dict]:
-    """Search the MCP registry for servers matching a query."""
-    async with httpx.AsyncClient() as client:
-        resp = await client.get(
-            get_registry_url(),
-            params={"search": query, "limit": 10},
-            timeout=15,
-        )
-        resp.raise_for_status()
+async def scout_find(context: str, max_results: int = 5) -> list[dict]:
+    """Find and rank MCP servers matching your needs.
 
-    servers = []
-    for entry in resp.json().get("servers", []):
-        server = entry.get("server", {})
-        remotes = server.get("remotes", [])
-        servers.append({
-            "name": server.get("name", "unknown"),
-            "description": server.get("description", ""),
-            "remote_url": remotes[0]["url"] if remotes else None,
-        })
-
-    return servers
+    Searches the MCP registry, filters to HTTP-reachable servers,
+    and ranks them by relevance using AI.
+    """
+    # Step 1: Search registry
+    raw = await search_registry(context)
+    # Step 2: Filter — keep only HTTP-reachable servers
+    http_servers = filter_http_servers(raw)
+    # Step 3: Rank with Haiku (or fall back to unranked)
+    ranked = await rank_servers(context, http_servers)
+    # Step 4: Limit results
+    return ranked[:max_results]
 
 
 if __name__ == "__main__":
