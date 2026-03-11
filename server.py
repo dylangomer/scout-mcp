@@ -4,7 +4,10 @@ import sys
 import httpx
 from contextlib import asynccontextmanager
 from fastmcp import FastMCP
+from fastmcp.server.context import Context
 
+import mcp.types as mcp_types
+import proxy
 from ranker import filter_http_servers, rank_servers
 
 
@@ -88,6 +91,22 @@ async def scout_find(context: str, max_results: int = 5) -> list[dict]:
     ranked = await rank_servers(context, http_servers)
     # Step 4: Limit results
     return ranked[:max_results]
+
+
+@mcp.tool
+async def scout_connect(name: str, url: str, ctx: Context) -> dict:
+    """Connect to a remote MCP server and expose its tools.
+
+    Registers the server's tools under a namespaced prefix (server_name_tool_name)
+    to prevent collisions. Fires a tools/list_changed notification so the host
+    discovers the new tools immediately.
+
+    Returns instantly from cache if the server is already connected.
+    """
+    result = proxy.connect(name, url, mcp)
+    if result["status"] == "connected":
+        await ctx.send_notification(mcp_types.ToolListChangedNotification())
+    return result
 
 
 if __name__ == "__main__":
