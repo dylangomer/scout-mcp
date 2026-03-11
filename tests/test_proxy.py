@@ -82,11 +82,15 @@ class TestConnect:
         provider2 = proxy_mod._connections["server2"]
 
         # Each provider's client_factory should produce a client bound to its specific URL
-        client1 = provider1._client_factory()
-        client2 = provider2._client_factory()
+        client1 = provider1.client_factory()
+        client2 = provider2.client_factory()
 
-        assert client1._url != client2._url, (
-            f"Lambda closure bug: both providers use the same URL ({client1._url}). "
+        # ProxyClient stores the URL in transport.url (StreamableHttpTransport)
+        url_attr1 = str(client1.transport.url)
+        url_attr2 = str(client2.transport.url)
+
+        assert url_attr1 != url_attr2, (
+            f"Lambda closure bug: both providers use the same URL ({url_attr1}). "
             "Use 'lambda u=url: ProxyClient(u)' to bind at creation time."
         )
 
