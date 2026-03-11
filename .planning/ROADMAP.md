@@ -58,11 +58,11 @@ Plans:
   1. scout_acquire(context) with a natural-language description connects the best matching server and its tools are immediately usable
   2. scout_list_active() shows all servers Scout has connected to this session
   3. scout_disconnect(server_name) removes a server's tools from the host's tool list cleanly
-**Plans**: TBD
+**Plans**: 2 plans
 
 Plans:
-- [ ] 03-01: scout_acquire pipeline and cache-hit fast path (CTRL-01)
-- [ ] 03-02: scout_list_active and scout_disconnect control tools (CTRL-02, CTRL-03)
+- [ ] 03-01-PLAN.md — scout_acquire pipeline with cache-hit fast path and notification (CTRL-01)
+- [ ] 03-02-PLAN.md — scout_list_active and scout_disconnect control tools (CTRL-02, CTRL-03)
 
 ### Phase 4: Polish and Ship
 **Goal**: Scout is production-ready with clean error handling across all tools and complete documentation for new users
@@ -86,6 +86,6 @@ Phases execute in numeric order: 1 → 2 → 3 → 4
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 1. Intelligence Layer | 3/3 | Complete   | 2026-03-11 |
-| 2. Proxy Layer | 0/2 | Not started | - |
+| 2. Proxy Layer | 2/2 | Complete | 2026-03-11 |
 | 3. Full Loop | 0/2 | Not started | - |
 | 4. Polish and Ship | 0/2 | Not started | - |
