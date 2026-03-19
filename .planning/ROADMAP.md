@@ -72,11 +72,11 @@ Plans:
   1. Every tool returns a clear, human-readable message on failure — no raw stack traces or silent errors
   2. All environment variable configuration is validated with helpful guidance when misconfigured
   3. README documents architecture, install steps, and a working usage example end-to-end
-**Plans**: TBD
+**Plans**: 2 plans
 
 Plans:
-- [ ] 04-01: Error handling audit across all tools and modules (PLSH-01)
-- [ ] 04-02: README with architecture diagram, install instructions, usage examples (PLSH-02)
+- [ ] 04-01-PLAN.md — Error handling for scout_find and scout_acquire with TDD (PLSH-01)
+- [ ] 04-02-PLAN.md — README with architecture diagram, install instructions, usage examples (PLSH-02)
 
 ## Progress
 
