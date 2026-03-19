@@ -77,20 +77,25 @@ async def search_registry(query: str) -> list[dict]:
 
 
 @mcp.tool
-async def scout_find(context: str, max_results: int = 5) -> list[dict]:
+async def scout_find(context: str, max_results: int = 5) -> list[dict] | dict:
     """Find and rank MCP servers matching your needs.
 
     Searches the MCP registry, filters to HTTP-reachable servers,
     and ranks them by relevance using AI.
     """
-    # Step 1: Search registry
-    raw = await search_registry(context)
-    # Step 2: Filter — keep only HTTP-reachable servers
-    http_servers = filter_http_servers(raw)
-    # Step 3: Rank with Haiku (or fall back to unranked)
-    ranked = await rank_servers(context, http_servers)
-    # Step 4: Limit results
-    return ranked[:max_results]
+    try:
+        # Step 1: Search registry
+        raw = await search_registry(context)
+        # Step 2: Filter — keep only HTTP-reachable servers
+        http_servers = filter_http_servers(raw)
+        # Step 3: Rank with Haiku (or fall back to unranked)
+        ranked = await rank_servers(context, http_servers)
+        # Step 4: Limit results
+        return ranked[:max_results]
+    except RuntimeError as e:
+        return {"status": "error", "message": str(e)}
+    except Exception as e:
+        return {"status": "error", "message": f"Unexpected error during search: {e}"}
 
 
 @mcp.tool
@@ -130,24 +135,29 @@ async def scout_disconnect(server_name: str, ctx: Context) -> dict:
 @mcp.tool
 async def scout_acquire(context: str, ctx: Context) -> dict:
     """Find the best MCP server for a task and connect to it immediately."""
-    raw = await search_registry(context)
-    http_servers = filter_http_servers(raw)
-    if not http_servers:
-        return {"status": "no_servers_found", "context": context}
-    ranked = await rank_servers(context, http_servers)
-    if not ranked:
-        return {"status": "no_servers_found", "context": context}
-    top = ranked[0]
-    result = proxy.connect(top["name"], top["remote_url"], mcp)
-    if result["status"] == "connected":
-        await ctx.send_notification(mcp_types.ToolListChangedNotification())
-    return {
-        "status": result["status"],
-        "server": top["name"],
-        "url": top["remote_url"],
-        "score": top.get("score"),
-        "reasoning": top.get("reasoning"),
-    }
+    try:
+        raw = await search_registry(context)
+        http_servers = filter_http_servers(raw)
+        if not http_servers:
+            return {"status": "no_servers_found", "context": context}
+        ranked = await rank_servers(context, http_servers)
+        if not ranked:
+            return {"status": "no_servers_found", "context": context}
+        top = ranked[0]
+        result = proxy.connect(top["name"], top["remote_url"], mcp)
+        if result["status"] == "connected":
+            await ctx.send_notification(mcp_types.ToolListChangedNotification())
+        return {
+            "status": result["status"],
+            "server": top["name"],
+            "url": top["remote_url"],
+            "score": top.get("score"),
+            "reasoning": top.get("reasoning"),
+        }
+    except RuntimeError as e:
+        return {"status": "error", "message": str(e)}
+    except Exception as e:
+        return {"status": "error", "message": f"Unexpected error during acquire: {e}"}
 
 
 if __name__ == "__main__":
