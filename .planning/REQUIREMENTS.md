@@ -34,7 +34,7 @@ Requirements for initial release. Each maps to roadmap phases.
 ### Polish
 
 - [ ] **PLSH-01**: All tools have proper error handling with graceful, informative failure messages
-- [ ] **PLSH-02**: README documents architecture, install instructions, and usage examples
+- [x] **PLSH-02**: README documents architecture, install instructions, and usage examples
 
 ## v2 Requirements
 
@@ -89,7 +89,7 @@ Which phases cover which requirements. Updated during roadmap creation.
 | CTRL-02 | Phase 3 | Complete |
 | CTRL-03 | Phase 3 | Complete |
 | PLSH-01 | Phase 4 | Pending |
-| PLSH-02 | Phase 4 | Pending |
+| PLSH-02 | Phase 4 | Complete |
 
 **Coverage:**
 - v1 requirements: 14 total

@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: executing
-stopped_at: Completed 03-full-loop/03-02-PLAN.md
-last_updated: "2026-03-19T13:47:35.081Z"
+stopped_at: Completed 04-polish-and-ship/04-02-PLAN.md
+last_updated: "2026-03-19T15:37:30.160Z"
 last_activity: "2026-03-11 — Plan 01-01 complete: pytest infra + FastMCP lifespan + SCOUT_REGISTRY_URL config"
 progress:
   total_phases: 4
-  completed_phases: 3
-  total_plans: 7
-  completed_plans: 7
+  completed_phases: 4
+  total_plans: 9
+  completed_plans: 9
   percent: 33
 ---
 
@@ -56,6 +56,8 @@ Progress: [███░░░░░░░] 33%
 | Phase 02-proxy-layer P02 | 2 | 2 tasks | 2 files |
 | Phase 03-full-loop P01 | 2 | 1 tasks | 2 files |
 | Phase 03-full-loop P02 | 2 | 1 tasks | 2 files |
+| Phase 04-polish-and-ship P02 | 2 | 1 tasks | 1 files |
+| Phase 04-polish-and-ship P01 | 3 | 2 tasks | 2 files |
 
 ## Accumulated Context
 
@@ -82,6 +84,11 @@ Recent decisions affecting current work:
 - [Phase 03-full-loop]: no_servers_found guard fires before rank_servers call when filter_http_servers returns [] — avoids unnecessary Haiku API call
 - [Phase 03-full-loop]: scout_list_active is sync (def not async def) — proxy.get_connections() is sync, no await needed
 - [Phase 03-full-loop]: scout_disconnect guards ToolListChangedNotification on status == disconnected — mirrors scout_connect guard pattern
+- [Phase 04-polish-and-ship]: README uses Unicode box-drawing characters in ASCII architecture diagram — file UTF-8 encoded throughout
+- [Phase 04-polish-and-ship]: README usage examples framed as natural-language prompts with actual return dict shapes from server.py
+- [Phase 04-polish-and-ship]: Catch RuntimeError specifically before broad Exception in scout_find and scout_acquire — search_registry raises RuntimeError for registry failures, broad Exception is for truly unexpected errors
+- [Phase 04-polish-and-ship]: Return {status: error, message: str(e)} matching existing status-dict convention — no ToolError or McpError, consistent with all other tool returns
+- [Phase 04-polish-and-ship]: Updated scout_find return type annotation to list[dict] | dict — accurately reflects new possible return shape when error occurs
 
 ### Pending Todos
 
@@ -94,6 +101,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-19T13:47:35.077Z
-Stopped at: Completed 03-full-loop/03-02-PLAN.md
+Last session: 2026-03-19T15:36:36.231Z
+Stopped at: Completed 04-polish-and-ship/04-02-PLAN.md
 Resume file: None
