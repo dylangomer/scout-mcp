@@ -15,7 +15,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 - [x] **Phase 1: Intelligence Layer** - Haiku ranking pipeline with env config and scout_find tool (completed 2026-03-11)
 - [ ] **Phase 2: Proxy Layer** - Dynamic HTTP proxy connection management with namespace safety and session cache
 - [x] **Phase 3: Full Loop** - scout_acquire end-to-end pipeline, scout_list_active, scout_disconnect, and in-memory caching (completed 2026-03-19)
-- [ ] **Phase 4: Polish and Ship** - Error handling across all tools, env var config hardening, README with architecture diagram and install instructions
+- [x] **Phase 4: Polish and Ship** - Error handling across all tools, env var config hardening, README with architecture diagram and install instructions (completed 2026-03-19)
 
 ## Phase Details
 
@@ -88,4 +88,4 @@ Phases execute in numeric order: 1 → 2 → 3 → 4
 | 1. Intelligence Layer | 3/3 | Complete   | 2026-03-11 |
 | 2. Proxy Layer | 2/2 | Complete | 2026-03-11 |
 | 3. Full Loop | 2/2 | Complete   | 2026-03-19 |
-| 4. Polish and Ship | 1/2 | In Progress|  |
+| 4. Polish and Ship | 2/2 | Complete   | 2026-03-19 |
