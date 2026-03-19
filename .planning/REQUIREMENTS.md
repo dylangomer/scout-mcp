@@ -22,7 +22,7 @@ Requirements for initial release. Each maps to roadmap phases.
 
 ### Control
 
-- [ ] **CTRL-01**: scout_acquire(context) triggers the full flow: find → rank → connect → proxy in one call
+- [x] **CTRL-01**: scout_acquire(context) triggers the full flow: find → rank → connect → proxy in one call
 - [ ] **CTRL-02**: scout_list_active() shows all servers Scout has connected to this session
 - [ ] **CTRL-03**: scout_disconnect(server_name) removes a proxied server and cleans up its tools
 
@@ -85,7 +85,7 @@ Which phases cover which requirements. Updated during roadmap creation.
 | PRXY-02 | Phase 2 | Complete |
 | PRXY-03 | Phase 2 | Complete |
 | PRXY-04 | Phase 2 | Complete |
-| CTRL-01 | Phase 3 | Pending |
+| CTRL-01 | Phase 3 | Complete |
 | CTRL-02 | Phase 3 | Pending |
 | CTRL-03 | Phase 3 | Pending |
 | PLSH-01 | Phase 4 | Pending |

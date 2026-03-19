@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: executing
-stopped_at: Completed 02-proxy-layer/02-02-PLAN.md
-last_updated: "2026-03-11T17:22:09.921Z"
+stopped_at: Completed 03-full-loop/03-01-PLAN.md
+last_updated: "2026-03-19T13:46:28.462Z"
 last_activity: "2026-03-11 — Plan 01-01 complete: pytest infra + FastMCP lifespan + SCOUT_REGISTRY_URL config"
 progress:
   total_phases: 4
   completed_phases: 2
-  total_plans: 5
-  completed_plans: 5
+  total_plans: 7
+  completed_plans: 6
   percent: 33
 ---
 
@@ -54,6 +54,7 @@ Progress: [███░░░░░░░] 33%
 | Phase 01-intelligence-layer P03 | 2 | 1 tasks | 2 files |
 | Phase 02-proxy-layer P01 | 2 | 2 tasks | 2 files |
 | Phase 02-proxy-layer P02 | 2 | 2 tasks | 2 files |
+| Phase 03-full-loop P01 | 2 | 1 tasks | 2 files |
 
 ## Accumulated Context
 
@@ -76,6 +77,8 @@ Recent decisions affecting current work:
 - [Phase 02-proxy-layer]: ProxyClient URL stored in .transport.url (StreamableHttpTransport), not ._url — lambda binding test must compare transport.url across two providers
 - [Phase 02-proxy-layer]: Import mcp.types as mcp_types to avoid shadowing by module-level FastMCP instance named mcp — local variable resolves first in Python lookup
 - [Phase 02-proxy-layer]: Patch proxy.connect (not server.proxy.connect) in tests — server.py calls proxy.connect at module namespace, patch target must match lookup location
+- [Phase 03-full-loop]: scout_acquire returns {status, server, url, score, reasoning} — superset of proxy.connect result, adds ranking metadata
+- [Phase 03-full-loop]: no_servers_found guard fires before rank_servers call when filter_http_servers returns [] — avoids unnecessary Haiku API call
 
 ### Pending Todos
 
@@ -88,6 +91,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-11T17:22:09.918Z
-Stopped at: Completed 02-proxy-layer/02-02-PLAN.md
+Last session: 2026-03-19T13:46:28.458Z
+Stopped at: Completed 03-full-loop/03-01-PLAN.md
 Resume file: None
