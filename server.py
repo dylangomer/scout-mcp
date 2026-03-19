@@ -109,5 +109,46 @@ async def scout_connect(name: str, url: str, ctx: Context) -> dict:
     return result
 
 
+@mcp.tool
+def scout_list_active() -> list[dict]:
+    """List all MCP servers Scout has connected to in this session."""
+    return [
+        {"name": name, "url": url}
+        for name, url in proxy.get_connections().items()
+    ]
+
+
+@mcp.tool
+async def scout_disconnect(server_name: str, ctx: Context) -> dict:
+    """Disconnect a server and remove its tools from the host's tool list."""
+    result = proxy.disconnect(server_name, mcp)
+    if result["status"] == "disconnected":
+        await ctx.send_notification(mcp_types.ToolListChangedNotification())
+    return result
+
+
+@mcp.tool
+async def scout_acquire(context: str, ctx: Context) -> dict:
+    """Find the best MCP server for a task and connect to it immediately."""
+    raw = await search_registry(context)
+    http_servers = filter_http_servers(raw)
+    if not http_servers:
+        return {"status": "no_servers_found", "context": context}
+    ranked = await rank_servers(context, http_servers)
+    if not ranked:
+        return {"status": "no_servers_found", "context": context}
+    top = ranked[0]
+    result = proxy.connect(top["name"], top["remote_url"], mcp)
+    if result["status"] == "connected":
+        await ctx.send_notification(mcp_types.ToolListChangedNotification())
+    return {
+        "status": result["status"],
+        "server": top["name"],
+        "url": top["remote_url"],
+        "score": top.get("score"),
+        "reasoning": top.get("reasoning"),
+    }
+
+
 if __name__ == "__main__":
     mcp.run()
