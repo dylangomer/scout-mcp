@@ -33,7 +33,7 @@ class TestNotification:
         mock_ctx = AsyncMock(spec=Context)
         connect_result = {"status": "connected", "name": "test", "url": "https://example.com/mcp"}
 
-        with patch("proxy.connect", return_value=connect_result):
+        with patch("proxy.connect", new_callable=AsyncMock, return_value=connect_result):
             await server.scout_connect(
                 name="test", url="https://example.com/mcp", ctx=mock_ctx
             )
@@ -51,7 +51,7 @@ class TestNotification:
         mock_ctx = AsyncMock(spec=Context)
         connect_result = {"status": "already_connected", "name": "test", "url": "https://example.com/mcp"}
 
-        with patch("proxy.connect", return_value=connect_result):
+        with patch("proxy.connect", new_callable=AsyncMock, return_value=connect_result):
             await server.scout_connect(
                 name="test", url="https://example.com/mcp", ctx=mock_ctx
             )
@@ -66,7 +66,7 @@ class TestNotification:
         mock_ctx = AsyncMock(spec=Context)
         expected = {"status": "connected", "name": "myserver", "url": "https://myserver.io/mcp"}
 
-        with patch("proxy.connect", return_value=expected):
+        with patch("proxy.connect", new_callable=AsyncMock, return_value=expected):
             result = await server.scout_connect(
                 name="myserver", url="https://myserver.io/mcp", ctx=mock_ctx
             )

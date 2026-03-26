@@ -46,7 +46,7 @@ class TestScoutAcquire:
         with (
             patch("server.search_registry", AsyncMock(return_value=registry_servers)),
             patch("server.rank_servers", AsyncMock(return_value=ranked_servers)),
-            patch("proxy.connect", return_value=connect_result),
+            patch("proxy.connect", new_callable=AsyncMock, return_value=connect_result),
         ):
             result = await server.scout_acquire("weather tools", mock_ctx)
 
@@ -89,7 +89,7 @@ class TestScoutAcquire:
         with (
             patch("server.search_registry", AsyncMock(return_value=registry_servers)),
             patch("server.rank_servers", AsyncMock(return_value=ranked_servers)),
-            patch("proxy.connect", return_value=connect_result),
+            patch("proxy.connect", new_callable=AsyncMock, return_value=connect_result),
         ):
             result = await server.scout_acquire("weather tools", mock_ctx)
 

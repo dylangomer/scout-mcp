@@ -107,7 +107,7 @@ async def scout_connect(name: str, url: str, ctx: Context) -> dict:
 
     Returns instantly from cache if the server is already connected.
     """
-    result = proxy.connect(name, url, app)
+    result = await proxy.connect(name, url, app)
     if result["status"] == "connected":
         await ctx.send_notification(mcp_types.ToolListChangedNotification())
     return result
@@ -143,7 +143,7 @@ async def scout_acquire(context: str, ctx: Context) -> dict:
         if not ranked:
             return {"status": "no_servers_found", "context": context}
         top = ranked[0]
-        result = proxy.connect(top["name"], top["remote_url"], app)
+        result = await proxy.connect(top["name"], top["remote_url"], app)
         if result["status"] == "connected":
             await ctx.send_notification(mcp_types.ToolListChangedNotification())
         return {

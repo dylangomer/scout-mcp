@@ -2,8 +2,10 @@
 
 import logging
 
+import httpx
 from fastmcp import FastMCP
 from fastmcp.server.providers.proxy import ProxyClient, ProxyProvider
+from mcp import McpError
 
 log = logging.getLogger(__name__)
 
@@ -12,11 +14,16 @@ _connections: dict[str, ProxyProvider] = {}
 _urls: dict[str, str] = {}
 
 
-def connect(name: str, url: str, app: FastMCP) -> dict:
+CONNECT_TIMEOUT_SECONDS = 10
+
+
+async def connect(name: str, url: str, app: FastMCP) -> dict:
     """Connect to a remote MCP server and register it as a namespaced provider.
 
+    Verifies the server is reachable before caching the connection.
     If the server is already connected at the same URL, returns already_connected.
     If the name is cached but the URL differs, disconnects the old server and reconnects.
+    Returns {"status": "error", ...} if the server is unreachable.
     Returns {"status": "connected", "name": name, "url": url} on success.
     """
     if name in _connections:
@@ -25,6 +32,16 @@ def connect(name: str, url: str, app: FastMCP) -> dict:
         # Same name, different URL — reconnect to the new endpoint.
         log.info("Reconnecting '%s': URL changed from %s to %s", name, _urls[name], url)
         disconnect(name, app)
+
+    # Verify the server is reachable before committing.
+    try:
+        client = ProxyClient(url)
+        async with client:
+            pass  # connect + MCP initialize handshake succeeded
+    except (RuntimeError, OSError, httpx.HTTPError, McpError, TimeoutError) as e:
+        log.warning("Server '%s' at %s is unreachable: %s", name, url, e)
+        return {"status": "error", "name": name, "url": url, "message": str(e)}
+
     # Bind url via default argument to avoid lambda closure trap
     provider = ProxyProvider(lambda u=url: ProxyClient(u))
     app.add_provider(provider, namespace=name)
