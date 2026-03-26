@@ -8,7 +8,6 @@ Verifies that:
 - scout_disconnect for an unknown server returns not_found without firing notification
 - scout_disconnect has the correct signature (server_name: str, ctx: Context)
 """
-import asyncio
 import inspect
 import pytest
 from unittest.mock import AsyncMock, patch
@@ -48,7 +47,7 @@ class TestListActive:
 
     def test_list_active_is_sync(self):
         """scout_list_active must be a regular function, not a coroutine function."""
-        assert not asyncio.iscoroutinefunction(server.scout_list_active), (
+        assert not inspect.iscoroutinefunction(server.scout_list_active), (
             "scout_list_active must NOT be async — no await is needed"
         )
 

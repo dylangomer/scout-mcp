@@ -1,7 +1,7 @@
 [project]
 name = "scout-mcp"
 version = "0.1.0"
-description = "Add your description here"
+description = "AI-powered dynamic MCP server discovery gateway"
 readme = "README.md"
 requires-python = ">=3.14"
 dependencies = [

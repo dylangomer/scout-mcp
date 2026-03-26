@@ -49,7 +49,7 @@ Scout is an MCP server that acts as a gateway for runtime tool discovery. Connec
 ## Install
 
 ```bash
-git clone https://github.com/YOUR_USERNAME/scout-mcp.git
+git clone https://github.com/dylangomer/scout-mcp.git
 cd scout-mcp
 uv sync
 ```
