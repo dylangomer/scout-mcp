@@ -15,11 +15,16 @@ _urls: dict[str, str] = {}
 def connect(name: str, url: str, app: FastMCP) -> dict:
     """Connect to a remote MCP server and register it as a namespaced provider.
 
-    If the server is already connected, returns immediately with already_connected status.
+    If the server is already connected at the same URL, returns already_connected.
+    If the name is cached but the URL differs, disconnects the old server and reconnects.
     Returns {"status": "connected", "name": name, "url": url} on success.
     """
     if name in _connections:
-        return {"status": "already_connected", "name": name, "url": _urls[name]}
+        if _urls[name] == url:
+            return {"status": "already_connected", "name": name, "url": _urls[name]}
+        # Same name, different URL — reconnect to the new endpoint.
+        log.info("Reconnecting '%s': URL changed from %s to %s", name, _urls[name], url)
+        disconnect(name, app)
     # Bind url via default argument to avoid lambda closure trap
     provider = ProxyProvider(lambda u=url: ProxyClient(u))
     app.add_provider(provider, namespace=name)

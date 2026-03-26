@@ -102,7 +102,7 @@ class TestCache:
     """PRXY-04: In-memory cache prevents re-connecting to the same server."""
 
     async def test_cache_prevents_reconnect(self, clean_proxy_cache, fresh_app):
-        """Calling connect() twice with the same name returns already_connected."""
+        """Calling connect() twice with the same name and URL returns already_connected."""
         calls = []
 
         original_add_provider = fresh_app.add_provider
@@ -113,13 +113,34 @@ class TestCache:
 
         with patch.object(fresh_app, "add_provider", side_effect=spy_add_provider):
             result1 = proxy_mod.connect("myserver", URL1, fresh_app)
-            result2 = proxy_mod.connect("myserver", URL2, fresh_app)
+            result2 = proxy_mod.connect("myserver", URL1, fresh_app)
 
         assert result1["status"] == "connected"
         assert result2 == {"status": "already_connected", "name": "myserver", "url": URL1}
         assert len(calls) == 1, (
             f"add_provider was called {len(calls)} times; expected exactly 1"
         )
+
+    async def test_cache_reconnects_on_different_url(self, clean_proxy_cache, fresh_app):
+        """Calling connect() with the same name but a different URL disconnects and reconnects."""
+        result1 = proxy_mod.connect("myserver", URL1, fresh_app)
+        assert result1["status"] == "connected"
+
+        result2 = proxy_mod.connect("myserver", URL2, fresh_app)
+        assert result2["status"] == "connected"
+        assert result2["url"] == URL2
+        assert proxy_mod._urls["myserver"] == URL2
+
+    async def test_cache_reconnect_removes_old_provider(self, clean_proxy_cache, fresh_app):
+        """Reconnecting to a different URL removes the old provider before adding new one."""
+        initial_count = len(fresh_app.providers)
+
+        proxy_mod.connect("myserver", URL1, fresh_app)
+        assert len(fresh_app.providers) == initial_count + 1
+
+        proxy_mod.connect("myserver", URL2, fresh_app)
+        # Old provider removed, new provider added — count stays the same
+        assert len(fresh_app.providers) == initial_count + 1
 
     async def test_is_connected_true(self, clean_proxy_cache, fresh_app):
         """is_connected('myserver') returns True after connect('myserver', ...)."""
