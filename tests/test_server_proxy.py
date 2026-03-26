@@ -6,26 +6,23 @@ Verifies that:
 - scout_connect returns the result dict from proxy.connect
 - scout_connect accepts a ctx: Context parameter
 """
-import pytest
-import pytest_asyncio
-import asyncio
-from unittest.mock import AsyncMock, patch, MagicMock
+
+import inspect
+from unittest.mock import AsyncMock, patch
+
 import mcp.types
+import pytest
 
-import proxy as proxy_mod
 import server
-
-
-def _reset_cache():
-    """Clear the proxy module-level cache before each test to avoid state leakage."""
-    proxy_mod._connections.clear()
-    proxy_mod._urls.clear()
 
 
 class TestNotification:
     def setup_method(self):
         """Reset proxy state before each test."""
-        _reset_cache()
+        import proxy as proxy_mod
+
+        proxy_mod._connections.clear()
+        proxy_mod._urls.clear()
 
     @pytest.mark.asyncio
     async def test_list_changed_fires_on_new_connection(self):
@@ -36,8 +33,8 @@ class TestNotification:
         mock_ctx = AsyncMock(spec=Context)
         connect_result = {"status": "connected", "name": "test", "url": "https://example.com/mcp"}
 
-        with patch("proxy.connect", return_value=connect_result) as mock_connect:
-            result = await server.scout_connect(
+        with patch("proxy.connect", return_value=connect_result):
+            await server.scout_connect(
                 name="test", url="https://example.com/mcp", ctx=mock_ctx
             )
 
@@ -55,7 +52,7 @@ class TestNotification:
         connect_result = {"status": "already_connected", "name": "test", "url": "https://example.com/mcp"}
 
         with patch("proxy.connect", return_value=connect_result):
-            result = await server.scout_connect(
+            await server.scout_connect(
                 name="test", url="https://example.com/mcp", ctx=mock_ctx
             )
 
@@ -78,7 +75,6 @@ class TestNotification:
 
     def test_scout_connect_accepts_context_param(self):
         """The scout_connect function signature must include a ctx: Context parameter."""
-        import inspect
         from fastmcp.server.context import Context
 
         sig = inspect.signature(server.scout_connect)

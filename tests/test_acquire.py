@@ -1,23 +1,21 @@
 """Tests for scout_acquire tool — full pipeline: search, filter, rank, connect, notify."""
+
 import inspect
-import pytest
 from unittest.mock import AsyncMock, patch
+
 import mcp.types
+import pytest
 
-import proxy as proxy_mod
 import server
-
-
-def _reset_cache():
-    """Clear the proxy module-level cache before each test to avoid state leakage."""
-    proxy_mod._connections.clear()
-    proxy_mod._urls.clear()
 
 
 class TestScoutAcquire:
     def setup_method(self):
         """Reset proxy state before each test."""
-        _reset_cache()
+        import proxy as proxy_mod
+
+        proxy_mod._connections.clear()
+        proxy_mod._urls.clear()
 
     @pytest.mark.asyncio
     async def test_acquire_connects_top_server(self):

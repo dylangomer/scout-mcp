@@ -1,74 +1,82 @@
+"""Scout MCP server — AI-powered dynamic MCP server discovery gateway.
+
+Exposes tools to search the MCP registry, rank servers by relevance using
+Claude Haiku, and connect to remote servers on-the-fly.
+"""
+
 import asyncio
+import logging
 import os
 import sys
-import httpx
 from contextlib import asynccontextmanager
+
+import httpx
+import mcp.types as mcp_types
 from fastmcp import FastMCP
 from fastmcp.server.context import Context
 
-import mcp.types as mcp_types
 import proxy
 from ranker import filter_http_servers, rank_servers
+from schemas import ConnectionInfo, RegistryServer, ScoredServer
+
+log = logging.getLogger(__name__)
+
+DEFAULT_REGISTRY_URL = "https://registry.modelcontextprotocol.io/v0.1/servers"
+REGISTRY_SEARCH_LIMIT = 20
+REGISTRY_TIMEOUT_SECONDS = 15
 
 
 def get_registry_url() -> str:
     """Return the registry URL, respecting the SCOUT_REGISTRY_URL environment variable."""
-    return os.environ.get(
-        "SCOUT_REGISTRY_URL",
-        "https://registry.modelcontextprotocol.io/v0.1/servers",
-    )
-
-
-# Module-level constant kept for backward compatibility; use get_registry_url() at call sites.
-REGISTRY_URL = get_registry_url()
+    return os.environ.get("SCOUT_REGISTRY_URL", DEFAULT_REGISTRY_URL)
 
 
 @asynccontextmanager
-async def app_lifespan(server):
+async def app_lifespan(_app):
     """FastMCP lifespan: validate required environment variables at startup."""
     api_key = os.environ.get("ANTHROPIC_API_KEY")
     if not api_key:
-        print(
-            "ERROR: ANTHROPIC_API_KEY is required but not set. "
+        log.error(
+            "ANTHROPIC_API_KEY is required but not set. "
             "Set the environment variable before starting Scout.",
-            file=sys.stderr,
         )
         sys.exit(1)
     yield
 
 
-mcp = FastMCP("Scout", lifespan=app_lifespan)
+app = FastMCP("Scout", lifespan=app_lifespan)
 
 
-@mcp.tool
+@app.tool
 def ping() -> str:
     """Check that Scout is alive and responding."""
     return "pong — Scout is running!"
 
 
-async def search_registry(query: str) -> list[dict]:
+async def search_registry(query: str) -> list[RegistryServer]:
     """Search the MCP registry with one retry on failure."""
     for attempt in range(2):
         try:
             async with httpx.AsyncClient() as client:
                 resp = await client.get(
                     get_registry_url(),
-                    params={"search": query, "limit": 20},
-                    timeout=15,
+                    params={"search": query, "limit": REGISTRY_SEARCH_LIMIT},
+                    timeout=REGISTRY_TIMEOUT_SECONDS,
                 )
                 resp.raise_for_status()
-            servers = []
+            servers: list[RegistryServer] = []
             for entry in resp.json().get("servers", []):
-                server = entry.get("server", {})
-                remotes = server.get("remotes", [])
-                servers.append({
-                    "name": server.get("name", "unknown"),
-                    "description": server.get("description", ""),
-                    "remote_url": remotes[0]["url"] if remotes else None,
-                })
+                srv = entry.get("server", {})
+                remotes = srv.get("remotes", [])
+                servers.append(RegistryServer(
+                    name=srv.get("name", "unknown"),
+                    description=srv.get("description", ""),
+                    remote_url=remotes[0]["url"] if remotes else None,
+                ))
             return servers
         except (httpx.HTTPError, httpx.TimeoutException) as e:
             if attempt == 0:
+                log.warning("Registry request failed, retrying: %s", e)
                 await asyncio.sleep(0.5)
                 continue
             raise RuntimeError(
@@ -76,29 +84,20 @@ async def search_registry(query: str) -> list[dict]:
             ) from e
 
 
-@mcp.tool
-async def scout_find(context: str, max_results: int = 5) -> list[dict] | dict:
+@app.tool
+async def scout_find(context: str, max_results: int = 5) -> list[ScoredServer]:
     """Find and rank MCP servers matching your needs.
 
     Searches the MCP registry, filters to HTTP-reachable servers,
     and ranks them by relevance using AI.
     """
-    try:
-        # Step 1: Search registry
-        raw = await search_registry(context)
-        # Step 2: Filter — keep only HTTP-reachable servers
-        http_servers = filter_http_servers(raw)
-        # Step 3: Rank with Haiku (or fall back to unranked)
-        ranked = await rank_servers(context, http_servers)
-        # Step 4: Limit results
-        return ranked[:max_results]
-    except RuntimeError as e:
-        return {"status": "error", "message": str(e)}
-    except Exception as e:
-        return {"status": "error", "message": f"Unexpected error during search: {e}"}
+    raw = await search_registry(context)
+    http_servers = filter_http_servers(raw)
+    ranked = await rank_servers(context, http_servers)
+    return ranked[:max_results]
 
 
-@mcp.tool
+@app.tool
 async def scout_connect(name: str, url: str, ctx: Context) -> dict:
     """Connect to a remote MCP server and expose its tools.
 
@@ -108,31 +107,31 @@ async def scout_connect(name: str, url: str, ctx: Context) -> dict:
 
     Returns instantly from cache if the server is already connected.
     """
-    result = proxy.connect(name, url, mcp)
+    result = proxy.connect(name, url, app)
     if result["status"] == "connected":
         await ctx.send_notification(mcp_types.ToolListChangedNotification())
     return result
 
 
-@mcp.tool
-def scout_list_active() -> list[dict]:
+@app.tool
+def scout_list_active() -> list[ConnectionInfo]:
     """List all MCP servers Scout has connected to in this session."""
     return [
-        {"name": name, "url": url}
+        ConnectionInfo(name=name, url=url)
         for name, url in proxy.get_connections().items()
     ]
 
 
-@mcp.tool
+@app.tool
 async def scout_disconnect(server_name: str, ctx: Context) -> dict:
     """Disconnect a server and remove its tools from the host's tool list."""
-    result = proxy.disconnect(server_name, mcp)
+    result = proxy.disconnect(server_name, app)
     if result["status"] == "disconnected":
         await ctx.send_notification(mcp_types.ToolListChangedNotification())
     return result
 
 
-@mcp.tool
+@app.tool
 async def scout_acquire(context: str, ctx: Context) -> dict:
     """Find the best MCP server for a task and connect to it immediately."""
     try:
@@ -144,7 +143,7 @@ async def scout_acquire(context: str, ctx: Context) -> dict:
         if not ranked:
             return {"status": "no_servers_found", "context": context}
         top = ranked[0]
-        result = proxy.connect(top["name"], top["remote_url"], mcp)
+        result = proxy.connect(top["name"], top["remote_url"], app)
         if result["status"] == "connected":
             await ctx.send_notification(mcp_types.ToolListChangedNotification())
         return {
@@ -156,9 +155,7 @@ async def scout_acquire(context: str, ctx: Context) -> dict:
         }
     except RuntimeError as e:
         return {"status": "error", "message": str(e)}
-    except Exception as e:
-        return {"status": "error", "message": f"Unexpected error during acquire: {e}"}
 
 
 if __name__ == "__main__":
-    mcp.run()
+    app.run()

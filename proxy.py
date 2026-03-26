@@ -1,12 +1,18 @@
 """Proxy connection manager — connect, disconnect, cache, and namespace remote MCP servers."""
-from fastmcp.server.providers.proxy import ProxyProvider, ProxyClient
+
+import logging
+
+from fastmcp import FastMCP
+from fastmcp.server.providers.proxy import ProxyClient, ProxyProvider
+
+log = logging.getLogger(__name__)
 
 # Module-level state: maps server name to raw ProxyProvider and its URL.
 _connections: dict[str, ProxyProvider] = {}
 _urls: dict[str, str] = {}
 
 
-def connect(name: str, url: str, mcp) -> dict:
+def connect(name: str, url: str, app: FastMCP) -> dict:
     """Connect to a remote MCP server and register it as a namespaced provider.
 
     If the server is already connected, returns immediately with already_connected status.
@@ -16,7 +22,7 @@ def connect(name: str, url: str, mcp) -> dict:
         return {"status": "already_connected", "name": name, "url": _urls[name]}
     # Bind url via default argument to avoid lambda closure trap
     provider = ProxyProvider(lambda u=url: ProxyClient(u))
-    mcp.add_provider(provider, namespace=name)
+    app.add_provider(provider, namespace=name)
     _connections[name] = provider
     _urls[name] = url
     return {"status": "connected", "name": name, "url": url}
@@ -27,7 +33,7 @@ def is_connected(name: str) -> bool:
     return name in _connections
 
 
-def disconnect(name: str, mcp) -> dict:
+def disconnect(name: str, app: FastMCP) -> dict:
     """Disconnect a previously connected server and remove it from the provider list.
 
     Returns {"status": "disconnected", "name": name} on success.
@@ -38,17 +44,23 @@ def disconnect(name: str, mcp) -> dict:
 
     raw_provider = _connections[name]
 
-    # Find the wrapped provider entry in mcp.providers.
+    # Find the wrapped provider entry in app.providers.
     # FastMCP wraps the raw ProxyProvider in a _WrappedProvider when namespace= is applied.
     # The wrapped entry stores the original via its ._inner attribute.
     wrapped_entry = None
-    for entry in mcp.providers:
+    for entry in app.providers:
         if getattr(entry, "_inner", None) is raw_provider:
             wrapped_entry = entry
             break
 
     if wrapped_entry is not None:
-        mcp.providers.remove(wrapped_entry)
+        app.providers.remove(wrapped_entry)
+    else:
+        log.warning(
+            "Provider for '%s' not found in app.providers — "
+            "cache cleared but provider may leak",
+            name,
+        )
 
     del _connections[name]
     del _urls[name]

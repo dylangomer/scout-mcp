@@ -6,19 +6,29 @@ This is the intelligence core of Scout:
   3. On any Haiku failure (network, rate limit, auth, bad JSON), fallback_unranked
      returns results with ranked=False and a fallback_reason — no crash.
 """
+
 import json
+import logging
+import os
 
 import anthropic
 
-_client = anthropic.AsyncAnthropic()
+from schemas import RegistryServer, ScoredServer
+
+log = logging.getLogger(__name__)
+
+RANKING_MODEL = os.environ.get("SCOUT_RANKING_MODEL", "claude-haiku-4-5-20251001")
+RANKING_MAX_TOKENS = 512
+
+_client = anthropic.AsyncAnthropic()  # uses ANTHROPIC_API_KEY from env
 
 
-def filter_http_servers(servers: list[dict]) -> list[dict]:
+def filter_http_servers(servers: list[RegistryServer]) -> list[RegistryServer]:
     """Remove servers that have no HTTP remote_url (stdio-only entries)."""
     return [s for s in servers if s.get("remote_url") is not None]
 
 
-def build_prompt(context: str, servers: list[dict]) -> str:
+def build_prompt(context: str, servers: list[RegistryServer]) -> str:
     """Build the ranking prompt for Haiku."""
     server_list = "\n".join(
         f"{i + 1}. {s['name']}: {s['description']}"
@@ -34,23 +44,23 @@ def build_prompt(context: str, servers: list[dict]) -> str:
     )
 
 
-def fallback_unranked(servers: list[dict], reason: str) -> list[dict]:
+def fallback_unranked(servers: list[RegistryServer], reason: str) -> list[ScoredServer]:
     """Return servers without ranking when Haiku is unavailable or returns bad data."""
     return [
-        {
-            "name": s["name"],
-            "description": s["description"],
-            "remote_url": s["remote_url"],
-            "score": None,
-            "reasoning": None,
-            "ranked": False,
-            "fallback_reason": reason,
-        }
+        ScoredServer(
+            name=s["name"],
+            description=s["description"],
+            remote_url=s["remote_url"],
+            score=None,
+            reasoning=None,
+            ranked=False,
+            fallback_reason=reason,
+        )
         for s in servers
     ]
 
 
-async def rank_servers(context: str, servers: list[dict]) -> list[dict]:
+async def rank_servers(context: str, servers: list[RegistryServer]) -> list[ScoredServer]:
     """Rank servers using Claude Haiku. Falls back to unranked on any failure.
 
     Args:
@@ -66,27 +76,34 @@ async def rank_servers(context: str, servers: list[dict]) -> list[dict]:
         return []
     try:
         response = await _client.messages.create(
-            model="claude-haiku-4-5-20251001",
-            max_tokens=512,
+            model=RANKING_MODEL,
+            max_tokens=RANKING_MAX_TOKENS,
             messages=[{"role": "user", "content": build_prompt(context, servers)}],
         )
         text = response.content[0].text
         rankings = json.loads(text)
         # Validate structure — every entry must have index, score, reasoning
-        scored = []
+        scored: list[ScoredServer] = []
         for rank in rankings:
             if not all(k in rank for k in ("index", "score", "reasoning")):
+                log.warning("Malformed ranking entry from Haiku: %s", rank)
                 return fallback_unranked(servers, "Malformed ranking response")
             idx = rank["index"] - 1  # 1-based → 0-based
             if 0 <= idx < len(servers):
-                server = servers[idx].copy()
-                server["score"] = int(rank["score"])
-                server["reasoning"] = rank["reasoning"]
-                server["ranked"] = True
-                scored.append(server)
+                src = servers[idx]
+                scored.append(ScoredServer(
+                    name=src["name"],
+                    description=src["description"],
+                    remote_url=src["remote_url"],
+                    score=int(rank["score"]),
+                    reasoning=rank["reasoning"],
+                    ranked=True,
+                ))
         scored.sort(key=lambda s: s["score"], reverse=True)
         return scored
     except anthropic.APIError as e:
+        log.warning("Haiku API error during ranking: %s", e)
         return fallback_unranked(servers, str(e))
-    except (json.JSONDecodeError, KeyError, IndexError, ValueError, TypeError):
+    except (json.JSONDecodeError, KeyError, IndexError, ValueError, TypeError) as e:
+        log.warning("Failed to parse Haiku ranking response: %s", e)
         return fallback_unranked(servers, "Failed to parse ranking response")

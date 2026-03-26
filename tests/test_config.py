@@ -1,6 +1,6 @@
 """Tests for CONF-01 (API key validation) and CONF-02 (registry URL config)."""
 import importlib
-import sys
+
 import pytest
 
 

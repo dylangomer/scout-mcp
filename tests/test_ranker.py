@@ -3,10 +3,8 @@ import json
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import anthropic
-import pytest
 
 import ranker
-
 
 # ---------------------------------------------------------------------------
 # Test data helpers

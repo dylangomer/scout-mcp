@@ -8,26 +8,17 @@ Verifies that:
 - scout_disconnect for an unknown server returns not_found without firing notification
 - scout_disconnect has the correct signature (server_name: str, ctx: Context)
 """
-import inspect
-import pytest
-from unittest.mock import AsyncMock, patch
-import mcp.types
 
-import proxy as proxy_mod
+import inspect
+from unittest.mock import AsyncMock, patch
+
+import mcp.types
+import pytest
+
 import server
 
 
-def _reset_cache():
-    """Clear the proxy module-level cache before each test to avoid state leakage."""
-    proxy_mod._connections.clear()
-    proxy_mod._urls.clear()
-
-
 class TestListActive:
-    def setup_method(self):
-        """Reset proxy state before each test."""
-        _reset_cache()
-
     def test_list_active_returns_connected_servers(self):
         """When two servers are connected, scout_list_active returns them as a list of dicts."""
         with patch("proxy.get_connections", return_value={"srv1": "https://a.io/mcp", "srv2": "https://b.io/mcp"}):
@@ -53,14 +44,9 @@ class TestListActive:
 
 
 class TestDisconnect:
-    def setup_method(self):
-        """Reset proxy state before each test."""
-        _reset_cache()
-
     @pytest.mark.asyncio
     async def test_disconnect_success(self):
-        """When proxy.disconnect returns status=disconnected, the result is returned
-        and ctx.send_notification is awaited once with a ToolListChangedNotification."""
+        """When proxy.disconnect returns status=disconnected, notification is fired."""
         from fastmcp.server.context import Context
 
         mock_ctx = AsyncMock(spec=Context)
@@ -93,15 +79,8 @@ class TestDisconnect:
         from fastmcp.server.context import Context
 
         sig = inspect.signature(server.scout_disconnect)
-        assert "server_name" in sig.parameters, "scout_disconnect must accept a server_name parameter"
-        assert "ctx" in sig.parameters, "scout_disconnect must accept a ctx parameter"
+        assert "server_name" in sig.parameters
+        assert "ctx" in sig.parameters
 
-        server_name_param = sig.parameters["server_name"]
-        assert server_name_param.annotation is str, (
-            f"server_name must be annotated as str, got {server_name_param.annotation}"
-        )
-
-        ctx_param = sig.parameters["ctx"]
-        assert ctx_param.annotation is Context, (
-            f"ctx parameter must be annotated as Context, got {ctx_param.annotation}"
-        )
+        assert sig.parameters["server_name"].annotation is str
+        assert sig.parameters["ctx"].annotation is Context
