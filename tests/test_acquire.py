@@ -136,6 +136,85 @@ class TestScoutAcquire:
         assert result == {"status": "no_servers_found", "context": "weather tools"}
         mock_ctx.send_notification.assert_not_awaited()
 
+    @pytest.mark.asyncio
+    async def test_acquire_retries_on_unreachable_server(self):
+        """When the top-ranked server is unreachable, acquire tries the next one."""
+        from fastmcp.server.context import Context
+
+        mock_ctx = AsyncMock(spec=Context)
+
+        registry_servers = [
+            {"name": "broken-mcp", "description": "Down server", "remote_url": "https://broken.example.com/mcp"},
+            {"name": "good-mcp", "description": "Working server", "remote_url": "https://good.example.com/mcp"},
+        ]
+        ranked_servers = [
+            {
+                "name": "broken-mcp", "description": "Down server",
+                "remote_url": "https://broken.example.com/mcp",
+                "score": 95, "reasoning": "Best match", "ranked": True,
+            },
+            {
+                "name": "good-mcp", "description": "Working server",
+                "remote_url": "https://good.example.com/mcp",
+                "score": 80, "reasoning": "Also good", "ranked": True,
+            },
+        ]
+
+        async def mock_connect(name, url, _app):
+            if name == "broken-mcp":
+                return {"status": "error", "name": name, "url": url, "message": "Connection refused"}
+            return {"status": "connected", "name": name, "url": url}
+
+        with (
+            patch("server.search_registry", AsyncMock(return_value=registry_servers)),
+            patch("server.rank_servers", AsyncMock(return_value=ranked_servers)),
+            patch("proxy.connect", side_effect=mock_connect),
+        ):
+            result = await server.scout_acquire("some tools", mock_ctx)
+
+        assert result["status"] == "connected"
+        assert result["server"] == "good-mcp"
+        mock_ctx.send_notification.assert_awaited_once()
+
+    @pytest.mark.asyncio
+    async def test_acquire_all_servers_unreachable(self):
+        """When all ranked servers are unreachable, returns error with tried list."""
+        from fastmcp.server.context import Context
+
+        mock_ctx = AsyncMock(spec=Context)
+
+        registry_servers = [
+            {"name": "broken1", "description": "Down", "remote_url": "https://broken1.example.com/mcp"},
+            {"name": "broken2", "description": "Also down", "remote_url": "https://broken2.example.com/mcp"},
+        ]
+        ranked_servers = [
+            {
+                "name": "broken1", "description": "Down",
+                "remote_url": "https://broken1.example.com/mcp",
+                "score": 90, "reasoning": "Top", "ranked": True,
+            },
+            {
+                "name": "broken2", "description": "Also down",
+                "remote_url": "https://broken2.example.com/mcp",
+                "score": 80, "reasoning": "Second", "ranked": True,
+            },
+        ]
+
+        async def mock_connect(name, url, _app):
+            return {"status": "error", "name": name, "url": url, "message": "Unreachable"}
+
+        with (
+            patch("server.search_registry", AsyncMock(return_value=registry_servers)),
+            patch("server.rank_servers", AsyncMock(return_value=ranked_servers)),
+            patch("proxy.connect", side_effect=mock_connect),
+        ):
+            result = await server.scout_acquire("some tools", mock_ctx)
+
+        assert result["status"] == "error"
+        assert result["message"] == "No reachable servers found"
+        assert len(result["tried"]) == 2
+        mock_ctx.send_notification.assert_not_awaited()
+
     def test_acquire_signature(self):
         """scout_acquire must have context: str and ctx: Context parameters."""
         from fastmcp.server.context import Context

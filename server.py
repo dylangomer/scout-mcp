@@ -133,7 +133,10 @@ async def scout_disconnect(server_name: str, ctx: Context) -> dict:
 
 @app.tool
 async def scout_acquire(context: str, ctx: Context) -> dict:
-    """Find the best MCP server for a task and connect to it immediately."""
+    """Find the best MCP server for a task and connect to it immediately.
+
+    Tries ranked servers in order until one connects successfully.
+    """
     try:
         raw = await search_registry(context)
         http_servers = filter_http_servers(raw)
@@ -142,16 +145,40 @@ async def scout_acquire(context: str, ctx: Context) -> dict:
         ranked = await rank_servers(context, http_servers)
         if not ranked:
             return {"status": "no_servers_found", "context": context}
-        top = ranked[0]
-        result = await proxy.connect(top["name"], top["remote_url"], app)
-        if result["status"] == "connected":
-            await ctx.send_notification(mcp_types.ToolListChangedNotification())
+
+        failed: list[dict] = []
+        for candidate in ranked:
+            result = await proxy.connect(candidate["name"], candidate["remote_url"], app)
+            if result["status"] == "connected":
+                await ctx.send_notification(mcp_types.ToolListChangedNotification())
+                return {
+                    "status": "connected",
+                    "server": candidate["name"],
+                    "url": candidate["remote_url"],
+                    "score": candidate.get("score"),
+                    "reasoning": candidate.get("reasoning"),
+                }
+            if result["status"] == "already_connected":
+                return {
+                    "status": "already_connected",
+                    "server": candidate["name"],
+                    "url": candidate["remote_url"],
+                    "score": candidate.get("score"),
+                    "reasoning": candidate.get("reasoning"),
+                }
+            # Connection failed — log and try next server
+            log.warning(
+                "Failed to connect to '%s' at %s: %s",
+                candidate["name"],
+                candidate["remote_url"],
+                result.get("message", "unknown error"),
+            )
+            failed.append({"name": candidate["name"], "url": candidate["remote_url"]})
+
         return {
-            "status": result["status"],
-            "server": top["name"],
-            "url": top["remote_url"],
-            "score": top.get("score"),
-            "reasoning": top.get("reasoning"),
+            "status": "error",
+            "message": "No reachable servers found",
+            "tried": failed,
         }
     except RuntimeError as e:
         return {"status": "error", "message": str(e)}
