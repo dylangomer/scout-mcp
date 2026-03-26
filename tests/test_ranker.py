@@ -166,6 +166,63 @@ class TestRankServers:
         assert results[0]["description"] == HTTP_SERVER_1["description"]
         assert results[0]["remote_url"] == HTTP_SERVER_1["remote_url"]
 
+    async def test_rank_uses_system_message(self):
+        """rank_servers passes RANKING_SYSTEM_PROMPT as the system parameter."""
+        valid_json = json.dumps([
+            {"index": 1, "score": 85, "reasoning": "Good match"},
+        ])
+        mock_create = AsyncMock(return_value=_make_mock_response(valid_json))
+        single_server = [HTTP_SERVER_1]
+
+        with patch.object(ranker._client.messages, "create", mock_create):
+            await ranker.rank_servers("GitHub", single_server)
+
+        call_kwargs = mock_create.call_args[1]
+        assert "system" in call_kwargs, "rank_servers must pass a system message"
+        assert call_kwargs["system"] == ranker.RANKING_SYSTEM_PROMPT
+
+    async def test_rank_caps_servers_at_max(self):
+        """When more than MAX_SERVERS_TO_RANK servers are provided, only the first N are ranked."""
+        many_servers = [
+            _make_server(f"server-{i}", f"Description {i}", f"https://s{i}.example.com/mcp")
+            for i in range(15)
+        ]
+        # Haiku returns scores for first 10 only
+        haiku_response = json.dumps([
+            {"index": i + 1, "score": 90 - i, "reasoning": f"Rank {i + 1}"}
+            for i in range(10)
+        ])
+        mock_create = AsyncMock(return_value=_make_mock_response(haiku_response))
+
+        with patch.object(ranker._client.messages, "create", mock_create):
+            results = await ranker.rank_servers("anything", many_servers)
+
+        assert len(results) == 10  # Capped, not 15
+        # Verify the prompt only included 10 servers
+        prompt = mock_create.call_args[1]["messages"][0]["content"]
+        assert "server-9" in prompt
+        assert "server-10" not in prompt
+
+    async def test_rank_partial_response_includes_unscored(self):
+        """When Haiku ranks only some servers, unscored ones appear with score=0."""
+        # Haiku only ranks server 1 out of 2
+        partial_json = json.dumps([
+            {"index": 1, "score": 85, "reasoning": "Good match"},
+        ])
+        mock_create = AsyncMock(return_value=_make_mock_response(partial_json))
+
+        with patch.object(ranker._client.messages, "create", mock_create):
+            results = await ranker.rank_servers("GitHub", HTTP_ONLY_SERVERS)
+
+        assert len(results) == 2  # Both servers present
+        ranked = [r for r in results if r["ranked"] is True]
+        unranked = [r for r in results if r["ranked"] is False]
+        assert len(ranked) == 1
+        assert ranked[0]["score"] == 85
+        assert len(unranked) == 1
+        assert unranked[0]["score"] == 0
+        assert unranked[0]["reasoning"] == "Not ranked by AI"
+
     async def test_rank_fallback_result_preserves_server_fields(self):
         """Fallback results include name, description, and remote_url from source server."""
         mock_create = AsyncMock(

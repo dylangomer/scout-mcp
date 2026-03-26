@@ -18,7 +18,20 @@ from schemas import RegistryServer, ScoredServer
 log = logging.getLogger(__name__)
 
 RANKING_MODEL = os.environ.get("SCOUT_RANKING_MODEL", "claude-haiku-4-5-20251001")
-RANKING_MAX_TOKENS = 512
+RANKING_MAX_TOKENS = 1024
+MAX_SERVERS_TO_RANK = 10
+
+RANKING_SYSTEM_PROMPT = (
+    "You are a ranking function. You receive a list of MCP servers and a user's need. "
+    "Score each server 0-100 by relevance. Return ONLY a JSON array, no other text.\n\n"
+    "Required format (one object per server):\n"
+    '[{"index": 1, "score": 85, "reasoning": "one sentence"}, ...]\n\n'
+    "Rules:\n"
+    "- index is the 1-based position from the server list\n"
+    "- score is an integer 0-100, higher = better match\n"
+    "- reasoning is a single sentence explaining the score\n"
+    "- Include every server from the list"
+)
 
 _client = anthropic.AsyncAnthropic()  # uses ANTHROPIC_API_KEY from env
 
@@ -29,19 +42,12 @@ def filter_http_servers(servers: list[RegistryServer]) -> list[RegistryServer]:
 
 
 def build_prompt(context: str, servers: list[RegistryServer]) -> str:
-    """Build the ranking prompt for Haiku."""
+    """Build the user message for Haiku ranking (format instructions are in system prompt)."""
     server_list = "\n".join(
         f"{i + 1}. {s['name']}: {s['description']}"
         for i, s in enumerate(servers)
     )
-    return (
-        f"You are ranking MCP servers for a user.\n"
-        f"User needs: {context}\n\n"
-        f"Servers:\n{server_list}\n\n"
-        f"Return a JSON array, one object per server, in this exact format:\n"
-        f'[{{"index": 1, "score": 85, "reasoning": "one sentence"}}, ...]\n'
-        f"Score 0-100. Higher = better match. No other text."
-    )
+    return f"User needs: {context}\n\nServers:\n{server_list}"
 
 
 def fallback_unranked(servers: list[RegistryServer], reason: str) -> list[ScoredServer]:
@@ -74,23 +80,29 @@ async def rank_servers(context: str, servers: list[RegistryServer]) -> list[Scor
     """
     if not servers:
         return []
+
+    # Cap the number of servers sent to Haiku to bound cost and token usage.
+    to_rank = servers[:MAX_SERVERS_TO_RANK]
+
     try:
         response = await _client.messages.create(
             model=RANKING_MODEL,
             max_tokens=RANKING_MAX_TOKENS,
-            messages=[{"role": "user", "content": build_prompt(context, servers)}],
+            system=RANKING_SYSTEM_PROMPT,
+            messages=[{"role": "user", "content": build_prompt(context, to_rank)}],
         )
         text = response.content[0].text
         rankings = json.loads(text)
         # Validate structure — every entry must have index, score, reasoning
         scored: list[ScoredServer] = []
+        scored_indices: set[int] = set()
         for rank in rankings:
             if not all(k in rank for k in ("index", "score", "reasoning")):
                 log.warning("Malformed ranking entry from Haiku: %s", rank)
                 return fallback_unranked(servers, "Malformed ranking response")
             idx = rank["index"] - 1  # 1-based → 0-based
-            if 0 <= idx < len(servers):
-                src = servers[idx]
+            if 0 <= idx < len(to_rank):
+                src = to_rank[idx]
                 scored.append(ScoredServer(
                     name=src["name"],
                     description=src["description"],
@@ -99,7 +111,22 @@ async def rank_servers(context: str, servers: list[RegistryServer]) -> list[Scor
                     reasoning=rank["reasoning"],
                     ranked=True,
                 ))
-        scored.sort(key=lambda s: s["score"], reverse=True)
+                scored_indices.add(idx)
+
+        # Append any servers that Haiku didn't rank (partial response).
+        for idx, src in enumerate(to_rank):
+            if idx not in scored_indices:
+                log.info("Server '%s' not ranked by Haiku — appending with score 0", src["name"])
+                scored.append(ScoredServer(
+                    name=src["name"],
+                    description=src["description"],
+                    remote_url=src["remote_url"],
+                    score=0,
+                    reasoning="Not ranked by AI",
+                    ranked=False,
+                ))
+
+        scored.sort(key=lambda s: s["score"] or 0, reverse=True)
         return scored
     except anthropic.APIError as e:
         log.warning("Haiku API error during ranking: %s", e)
